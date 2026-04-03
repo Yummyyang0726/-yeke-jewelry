@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  phone        String   @unique
+  passwordHash String
+  name         String
+  role         String   // boss | employee | factory
+  factoryId    Int?
+  factory      Factory? @relation(fields: [factoryId], references: [id])
+  createdAt    DateTime @default(now())
+
+  ordersCreated Order[]     @relation("CreatedBy")
+  statusLogs    StatusLog[]
+}
+
+model Store {
+  id        Int      @id @default(autoincrement())
+  name      String
+  shortName String
+  address   String
+  phone     String
+  createdAt DateTime @default(now())
+
+  orders Order[]
+}
+
+model Factory {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+
+  orders Order[]
+  users  User[]
+}
+
+model Order {
+  id            Int      @id @default(autoincrement())
+  orderNo       String   @unique
+  storeId       Int
+  store         Store    @relation(fields: [storeId], references: [id])
+  factoryId     Int
+  factory       Factory  @relation(fields: [factoryId], references: [id])
+  customerName  String
+  customerPhone String
+  category      String
+  size          String?
+  laborFee      Float?
+  goldPrice     Float?
+  materialDesc  String?
+  styleNotes    String?
+  remarks       String?
+  deliveryDate  String
+  status        String   @default("待接单")
+  createdById   Int
+  createdBy     User     @relation("CreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  stones     OrderStone[]
+  materials  OrderMaterial[]
+  images     OrderImage[]
+  settlement Settlement?
+  statusLogs StatusLog[]
+}
+
+model OrderStone {
+  id             Int    @id @default(autoincrement())
+  orderId        Int
+  order          Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stoneType      String
+  quantityWeight String
+  unitPrice      Float?
+}
+
+model OrderMaterial {
+  id             Int    @id @default(autoincrement())
+  orderId        Int
+  order          Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  category       String
+  quantityWeight String
+  gemSize        String?
+}
+
+model OrderImage {
+  id         Int      @id @default(autoincrement())
+  orderId    Int
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  imageType  String   // reference | material | cad
+  filePath   String
+  uploadedBy Int
+  createdAt  DateTime @default(now())
+}
+
+model Settlement {
+  id               Int     @id @default(autoincrement())
+  orderId          Int     @unique
+  order            Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  goldMaterial     String?
+  goldLoss         Float?
+  goldWeight       Float?
+  goldUnitPrice    Float?
+  goldAmount       Float?
+  stone1Material   String?
+  stone1Weight     Float?
+  stone1Price      Float?
+  stone1Amount     Float?
+  stone2Material   String?
+  stone2Weight     Float?
+  stone2Price      Float?
+  stone2Amount     Float?
+  oldOffset1       String?
+  oldOffsetAmount1 Float?
+  oldOffset2       String?
+  oldOffsetAmount2 Float?
+  oldOffset3       String?
+  oldOffsetAmount3 Float?
+  oldOffset4       String?
+  oldOffsetAmount4 Float?
+  purchaseMaterial String?
+  purchaseAmount   Float?
+  actualLaborFee   Float?
+  actualGoldWeight Float?
+  totalAmount      Float?
+  createdAt        DateTime @default(now())
+}
+
+model StatusLog {
+  id         Int      @id @default(autoincrement())
+  orderId    Int
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus String?
+  toStatus   String
+  operatedBy Int
+  operator   User     @relation(fields: [operatedBy], references: [id])
+  note       String?
+  createdAt  DateTime @default(now())
+}
