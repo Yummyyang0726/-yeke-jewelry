@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   description: '珠宝定制订单管理系统',
   manifest: '/manifest.webmanifest',
   appleWebApp: { capable: true, statusBarStyle: 'default', title: '叶客金匠' },
+  icons: { apple: '/icons/apple-icon-180.png' },
 }
 
 export const viewport: Viewport = {
