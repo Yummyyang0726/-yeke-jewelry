@@ -44,8 +44,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="text-3xl font-bold text-amber-700 mb-1">叶客金匠</div>
-          <div className="text-sm text-gray-500">珠宝工坊订单管理系统</div>
+          <div className="text-3xl font-bold text-primary mb-1">叶客金匠</div>
+          <div className="text-sm text-muted-foreground">珠宝工坊订单管理系统</div>
         </div>
         <Card>
           <CardHeader>
@@ -54,14 +54,17 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="phone">手机号</Label>
+                <Label htmlFor="phone">账号</Label>
                 <Input
                   id="phone"
-                  type="tel"
-                  placeholder="请输入手机号"
+                  type="text"
+                  placeholder="如 boss / wengji"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   required
                 />
               </div>
@@ -77,7 +80,7 @@ export default function LoginPage() {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full bg-amber-700 hover:bg-amber-800" disabled={loading}>
+              <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? '登录中...' : '登录'}
               </Button>
             </form>

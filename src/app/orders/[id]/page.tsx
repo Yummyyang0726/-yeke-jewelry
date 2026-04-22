@@ -2,13 +2,13 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
-import { NavBar } from '@/components/NavBar'
+import { AppShell } from '@/components/AppShell'
 import { StatusBadge } from '@/components/StatusBadge'
 import { ConfirmCadButton } from './ConfirmCadButton'
 import { PickupButton } from './PickupButton'
 import { ImagesSection } from './ImagesSection'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, Pencil } from 'lucide-react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 
@@ -42,9 +42,7 @@ export default async function OrderDetailPage({ params }: Params) {
   const isBoss = session.role === 'boss'
 
   return (
-    <div className="min-h-screen">
-      <NavBar userName={session.name} role={session.role} />
-      <main className="max-w-2xl mx-auto px-4 py-4 pb-12">
+    <AppShell userName={session.name} role={session.role} hideBottomTabs>
         {/* Back + header */}
         <div className="flex items-center gap-2 mb-4">
           <Link href="/dashboard" className="text-gray-500 hover:text-gray-700">
@@ -58,6 +56,17 @@ export default async function OrderDetailPage({ params }: Params) {
             <StatusBadge status={order.status} />
           </div>
         </div>
+
+        {/* Edit button */}
+        {isBoss && !['已取件'].includes(order.status) && (
+          <Link
+            href={`/orders/${order.id}/edit`}
+            className="mb-4 flex items-center justify-center gap-1.5 w-full h-10 rounded-lg border border-primary/30 text-primary text-sm font-medium hover:bg-primary/5 transition-colors"
+          >
+            <Pencil className="w-4 h-4" />
+            编辑订单
+          </Link>
+        )}
 
         {/* Action buttons */}
         {order.status === 'CAD待确认' && (
@@ -79,7 +88,7 @@ export default async function OrderDetailPage({ params }: Params) {
                 <InfoRow label="工厂" value={order.factory.name} />
                 <InfoRow label="类别" value={order.category} />
                 {order.size && <InfoRow label="尺寸" value={order.size} />}
-                <InfoRow label="交货日期" value={order.deliveryDate} />
+                <InfoRow label="开单日期" value={order.orderDate} />
                 <InfoRow label="开单人" value={order.createdBy.name} />
                 <InfoRow label="电话" value={order.customerPhone} />
                 {isBoss && order.laborFee != null && (
@@ -104,14 +113,22 @@ export default async function OrderDetailPage({ params }: Params) {
           {order.stones.length > 0 && (
             <Card className="shadow-none border-gray-200">
               <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="text-sm text-gray-700">定制用石</CardTitle>
+                <CardTitle className="text-sm text-gray-700">来石记录</CardTitle>
               </CardHeader>
-              <CardContent className="px-4 pb-4 space-y-2">
+              <CardContent className="px-4 pb-4 space-y-3">
                 {order.stones.map((s) => (
-                  <div key={s.id} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-800">{s.stoneType} · {s.quantityWeight}</span>
-                    {isBoss && s.unitPrice != null && (
-                      <span className="text-gray-500">¥{s.unitPrice}</span>
+                  <div key={s.id} className="border border-gray-100 rounded-lg p-3 space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-gray-800">{s.stoneType} · {s.quantityWeight}</span>
+                      {isBoss && s.unitPrice != null && (
+                        <span className="text-gray-500">¥{s.unitPrice}</span>
+                      )}
+                    </div>
+                    {s.girdleCode && (
+                      <div className="text-xs text-gray-500">腰码：{s.girdleCode}</div>
+                    )}
+                    {s.stoneNote && (
+                      <div className="text-xs text-gray-500">备注：{s.stoneNote}</div>
                     )}
                   </div>
                 ))}
@@ -124,31 +141,31 @@ export default async function OrderDetailPage({ params }: Params) {
               <CardHeader className="pb-2 pt-4 px-4">
                 <CardTitle className="text-sm text-gray-700">来料说明</CardTitle>
               </CardHeader>
-              <CardContent className="px-4 pb-4 space-y-2">
+              <CardContent className="px-4 pb-4 space-y-3">
                 {order.materials.map((m) => (
-                  <div key={m.id} className="text-sm text-gray-800">
-                    {m.category} · {m.quantityWeight}{m.gemSize ? ` · ${m.gemSize}` : ''}
+                  <div key={m.id} className="border border-gray-100 rounded-lg p-3 space-y-1">
+                    <div className="text-sm font-medium text-gray-800">
+                      {m.category} · {m.quantityWeight}{m.gemSize ? ` · ${m.gemSize}` : ''}
+                    </div>
+                    {m.girdleCode && (
+                      <div className="text-xs text-gray-500">腰码：{m.girdleCode}</div>
+                    )}
+                    {m.materialNote && (
+                      <div className="text-xs text-gray-500">备注：{m.materialNote}</div>
+                    )}
                   </div>
                 ))}
               </CardContent>
             </Card>
           )}
 
-          {(order.styleNotes || order.remarks) && (
+          {(order.remarks || order.customNotes || order.styleNotes) && (
             <Card className="shadow-none border-gray-200">
-              <CardContent className="px-4 py-3 space-y-2">
-                {order.styleNotes && (
-                  <div>
-                    <div className="text-xs text-gray-500 mb-1">款式说明</div>
-                    <div className="text-sm text-gray-800 whitespace-pre-wrap">{order.styleNotes}</div>
-                  </div>
-                )}
-                {order.remarks && (
-                  <div>
-                    <div className="text-xs text-gray-500 mb-1">备注</div>
-                    <div className="text-sm text-gray-800">{order.remarks}</div>
-                  </div>
-                )}
+              <CardContent className="px-4 py-3">
+                <div className="text-xs text-gray-500 mb-1">备注</div>
+                <div className="text-sm text-gray-800 whitespace-pre-wrap">
+                  {[order.remarks, order.customNotes, order.styleNotes].filter(Boolean).join('\n')}
+                </div>
               </CardContent>
             </Card>
           )}
@@ -196,7 +213,7 @@ export default async function OrderDetailPage({ params }: Params) {
                   {order.statusLogs.map((log) => (
                     <div key={log.id} className="flex gap-3 text-sm">
                       <div className="flex flex-col items-center">
-                        <div className="w-2 h-2 rounded-full bg-amber-600 mt-1.5" />
+                        <div className="w-2 h-2 rounded-full bg-primary mt-1.5" />
                         <div className="w-px flex-1 bg-gray-200 mt-1" />
                       </div>
                       <div className="pb-2 flex-1">
@@ -213,8 +230,7 @@ export default async function OrderDetailPage({ params }: Params) {
             </Card>
           )}
         </div>
-      </main>
-    </div>
+    </AppShell>
   )
 }
 
@@ -222,7 +238,7 @@ function InfoRow({ label, value, highlight }: { label: string; value: string; hi
   return (
     <>
       <dt className="text-gray-500">{label}</dt>
-      <dd className={`text-right ${highlight ? 'font-semibold text-amber-700' : 'text-gray-800'}`}>{value}</dd>
+      <dd className={`text-right ${highlight ? 'font-semibold text-primary' : 'text-gray-800'}`}>{value}</dd>
     </>
   )
 }

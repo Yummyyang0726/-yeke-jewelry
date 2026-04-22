@@ -36,9 +36,9 @@ export function CadUploadSection({ orderId, initialCadImages }: Props) {
   }
 
   return (
-    <Card className="shadow-none border-amber-200 mb-4">
+    <Card className="shadow-none border-primary/20 mb-4">
       <CardHeader className="pb-2 pt-4 px-4">
-        <CardTitle className="text-sm text-amber-700 flex items-center gap-2">
+        <CardTitle className="text-sm text-primary flex items-center gap-2">
           <CheckCircle className="w-4 h-4" />
           上传CAD设计图
         </CardTitle>

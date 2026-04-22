@@ -33,12 +33,23 @@ model Store {
 }
 
 model Factory {
-  id        Int      @id @default(autoincrement())
-  name      String
-  createdAt DateTime @default(now())
+  id               Int      @id @default(autoincrement())
+  name             String
+  contactPerson    String   @default("")
+  phone            String   @default("")
+  notes            String   @default("")
+  initialOwedGold  Float    @default(0)
+  initialOwedMoney Float    @default(0)
+  initialOwedGoldByMaterial String @default("{}")  // JSON map e.g. {"18K": 5.5, "PT950": 2.3}
+  noteTemplate     String   @default("")  // JSON array of default material types e.g. ["18K","PT950"]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
 
-  orders Order[]
-  users  User[]
+  orders           Order[]
+  users            User[]
+  deliveryNotes    DeliveryNote[]
+  refineryReceipts RefineryReceipt[]
+  materialReturns  MaterialReturn[]
 }
 
 model Order {
@@ -57,7 +68,8 @@ model Order {
   materialDesc  String?
   styleNotes    String?
   remarks       String?
-  deliveryDate  String
+  orderDate     String
+  customNotes   String?
   status        String   @default("待接单")
   createdById   Int
   createdBy     User     @relation("CreatedBy", fields: [createdById], references: [id])
@@ -72,21 +84,25 @@ model Order {
 }
 
 model OrderStone {
-  id             Int    @id @default(autoincrement())
+  id             Int     @id @default(autoincrement())
   orderId        Int
-  order          Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   stoneType      String
   quantityWeight String
   unitPrice      Float?
+  girdleCode     String?
+  stoneNote      String?
 }
 
 model OrderMaterial {
-  id             Int    @id @default(autoincrement())
+  id             Int     @id @default(autoincrement())
   orderId        Int
-  order          Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   category       String
   quantityWeight String
   gemSize        String?
+  girdleCode     String?
+  materialNote   String?
 }
 
 model OrderImage {
@@ -142,4 +158,137 @@ model StatusLog {
   operator   User     @relation(fields: [operatedBy], references: [id])
   note       String?
   createdAt  DateTime @default(now())
+}
+
+// ===== 金料对账模块 =====
+
+model DeliveryNote {
+  id                     Int              @id @default(autoincrement())
+  factoryId              Int
+  factory                Factory          @relation(fields: [factoryId], references: [id])
+  noteNumber             String           @default("")  // 我方单号
+  factoryNoteNumber      String           @default("")  // 工厂单号
+  noteDate               String
+  noteTime               String           @default("")
+  settlementMethod       String           @default("")
+  materialType           String           @default("")
+  goldPrice              Float            @default(0)
+  goldPriceByMaterial    String           @default("{}")  // JSON map e.g. {"18K": 350, "PT950": 280}
+  totalGoldWeight        Float            @default(0)
+  totalFee               Float            @default(0)
+  settledGoldWeight      Float            @default(0)
+  settledAmount          Float            @default(0)
+  prevOwedGold           Float            @default(0)
+  prevOwedMoney          Float            @default(0)
+  currentOwedGold        Float            @default(0)
+  currentOwedMoney       Float            @default(0)
+  prevOwedGoldByMaterial    String        @default("{}")  // JSON map of prev owed gold by material
+  currentOwedGoldByMaterial String        @default("{}")  // JSON map of current owed gold by material
+  imagePath              String           @default("")
+  receiptId              Int?
+  receipt                RefineryReceipt? @relation(fields: [receiptId], references: [id])
+  paymentStatus          String           @default("未付")
+  paymentDate            String?
+  paidAmount             Float            @default(0)
+  notes                  String           @default("")
+  factoryPrevOwedGold    Float?
+  factoryPrevOwedMoney   Float?
+  factoryCurrentOwedGold Float?
+  factoryCurrentOwedMoney Float?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @default(now()) @updatedAt
+
+  items  DeliveryItem[]
+  images DeliveryNoteImage[]
+
+  @@index([factoryId, noteDate(sort: Desc)])
+  @@index([noteDate(sort: Desc)])
+}
+
+model DeliveryItem {
+  id             Int          @id @default(autoincrement())
+  deliveryNoteId Int
+  deliveryNote   DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+  itemType       String       @default("定制")  // 定制 / 进货 / 修理 / 旧料退回
+  materialType   String       @default("18K")  // 18K / PT950 / PT900 / 千足金 / 其他
+  internalNumber String       @default("")     // 我方单号
+  barcode        String       @default("")
+  productName    String
+  quantity       Int          @default(1)
+  goldWeight     Float        @default(0)      // 旧料退回存为负数
+  feePerGram     Float        @default(0)
+  feePerPiece    Float        @default(0)
+  lineTotal      Float        @default(0)
+  sortOrder      Int          @default(0)
+}
+
+model DeliveryNoteImage {
+  id             Int          @id @default(autoincrement())
+  deliveryNoteId Int
+  deliveryNote   DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+  filePath       String
+  uploadedBy     Int
+  createdAt      DateTime     @default(now())
+}
+
+model RefineryReceipt {
+  id             Int      @id @default(autoincrement())
+  factoryId      Int?
+  factory        Factory? @relation(fields: [factoryId], references: [id])
+  receiptNumber  String   @default("")
+  receiptDate    String
+  refineryName   String   @default("")
+  totalIncoming  Float    @default(0)
+  totalPostMelt  Float    @default(0)
+  totalConverted Float    @default(0)
+  shippedDate    String?
+  shippedWeight  Float    @default(0)
+  trackingNumber String   @default("")
+  imagePath      String   @default("")
+  notes          String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  items         RefineryReceiptItem[]
+  deliveryNotes DeliveryNote[]
+
+  @@index([receiptDate(sort: Desc)])
+}
+
+model RefineryReceiptItem {
+  id              Int             @id @default(autoincrement())
+  receiptId       Int
+  receipt         RefineryReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  materialName    String          @default("")
+  incomingWeight  Float           @default(0)
+  postMeltWeight  Float           @default(0)
+  conversionRate  Float           @default(1.0)
+  convertedWeight Float           @default(0)
+  sortOrder       Int             @default(0)
+}
+
+model MaterialReturn {
+  id             Int      @id @default(autoincrement())
+  factoryId      Int
+  factory        Factory  @relation(fields: [factoryId], references: [id])
+  returnDate     String
+  materialName   String
+  goldWeight     Float
+  recyclePrice   Float    @default(0)
+  amount         Float    @default(0)
+  trackingNumber String   @default("")
+  status         String   @default("已寄出")
+  notes          String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  @@index([factoryId, returnDate(sort: Desc)])
+}
+
+model GoldPrice {
+  id        Int      @id @default(autoincrement())
+  source    String
+  goldPrice Float
+  ptPrice   Float?
+  fetchedAt DateTime @default(now())
 }

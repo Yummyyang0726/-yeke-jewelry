@@ -21,8 +21,10 @@ export async function GET(req: NextRequest) {
   const storeId = searchParams.get('storeId')
   const status = searchParams.get('status')
   const factoryId = searchParams.get('factoryId')
+  const q = searchParams.get('q')?.trim()
 
-  const where: Record<string, unknown> = {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = {}
 
   // Factory role: only see their own orders
   if (session.role === 'factory') {
@@ -32,6 +34,15 @@ export async function GET(req: NextRequest) {
     if (factoryId) where.factoryId = parseInt(factoryId)
   }
   if (status) where.status = status
+
+  if (q) {
+    where.OR = [
+      { customerName: { contains: q } },
+      { orderNo: { contains: q } },
+      { customerPhone: { contains: q } },
+      { category: { contains: q } },
+    ]
+  }
 
   const orders = await prisma.order.findMany({
     where,
@@ -53,7 +64,7 @@ export async function GET(req: NextRequest) {
     customerName: o.customerName,
     customerPhone: o.customerPhone,
     category: o.category,
-    deliveryDate: o.deliveryDate,
+    orderDate: o.orderDate,
     status: o.status,
     hasCad: o.images.length > 0,
     laborFee: isBoss ? o.laborFee : undefined,
@@ -85,22 +96,25 @@ export async function POST(req: NextRequest) {
       laborFee: orderData.laborFee ? parseFloat(orderData.laborFee) : null,
       goldPrice: orderData.goldPrice ? parseFloat(orderData.goldPrice) : null,
       materialDesc: orderData.materialDesc || null,
-      styleNotes: orderData.styleNotes || null,
       remarks: orderData.remarks || null,
-      deliveryDate: orderData.deliveryDate,
+      orderDate: orderData.orderDate,
       createdById: session.userId,
       stones: {
-        create: stones.map((s: { stoneType: string; quantityWeight: string; unitPrice?: string }) => ({
+        create: stones.map((s: { stoneType: string; quantityWeight: string; unitPrice?: string; girdleCode?: string; stoneNote?: string }) => ({
           stoneType: s.stoneType,
           quantityWeight: s.quantityWeight,
           unitPrice: s.unitPrice ? parseFloat(s.unitPrice) : null,
+          girdleCode: s.girdleCode || null,
+          stoneNote: s.stoneNote || null,
         })),
       },
       materials: {
-        create: materials.map((m: { category: string; quantityWeight: string; gemSize?: string }) => ({
+        create: materials.map((m: { category: string; quantityWeight: string; gemSize?: string; girdleCode?: string; materialNote?: string }) => ({
           category: m.category,
           quantityWeight: m.quantityWeight,
           gemSize: m.gemSize || null,
+          girdleCode: m.girdleCode || null,
+          materialNote: m.materialNote || null,
         })),
       },
     },

@@ -34,7 +34,7 @@ export function AcceptOrderButton({ orderId }: { orderId: number }) {
     <Button
       onClick={handleAccept}
       disabled={loading}
-      className="w-full mb-4 bg-amber-700 hover:bg-amber-800 h-11 gap-2"
+      className="w-full mb-4 bg-primary hover:bg-primary/90 h-11 gap-2"
     >
       <ClipboardCheck className="w-4 h-4" />
       {loading ? '处理中...' : '确认接单'}

@@ -1,8 +1,7 @@
 import { NextRequest } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
+import { uploadToCOS, deleteFromCOS, getCOSKeyFromUrl } from '@/lib/cos'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -34,9 +33,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     return Response.json({ error: '工厂只能上传CAD图' }, { status: 403 })
   }
 
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', String(orderId))
-  await mkdir(uploadDir, { recursive: true })
-
   const saved: Array<{ id: number; filePath: string; imageType: string }> = []
 
   for (const file of files) {
@@ -44,21 +40,21 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const ext = file.name.split('.').pop() ?? 'jpg'
     const filename = `${imageType}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.${ext}`
-    const filepath = path.join(uploadDir, filename)
+    const cosKey = `orders/${orderId}/${filename}`
     const buffer = Buffer.from(await file.arrayBuffer())
-    await writeFile(filepath, buffer)
 
-    const webPath = `/uploads/${orderId}/${filename}`
+    // Upload to COS
+    const cosUrl = await uploadToCOS(buffer, cosKey, file.type)
 
     const record = await prisma.orderImage.create({
       data: {
         orderId,
         imageType,
-        filePath: webPath,
+        filePath: cosUrl,
         uploadedBy: session.userId,
       },
     })
-    saved.push({ id: record.id, filePath: webPath, imageType })
+    saved.push({ id: record.id, filePath: cosUrl, imageType })
   }
 
   // If factory uploading CAD, advance status
@@ -95,12 +91,14 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     return Response.json({ error: '无权限' }, { status: 403 })
   }
 
-  // Delete file
-  try {
-    const { unlink } = await import('fs/promises')
-    await unlink(path.join(process.cwd(), 'public', image.filePath))
-  } catch {
-    // ignore if file not found
+  // Delete from COS
+  const cosKey = getCOSKeyFromUrl(image.filePath)
+  if (cosKey) {
+    try {
+      await deleteFromCOS(cosKey)
+    } catch {
+      // ignore if file not found on COS
+    }
   }
 
   await prisma.orderImage.delete({ where: { id: imageId } })

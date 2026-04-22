@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const { phone, password } = await req.json()
 
   if (!phone || !password) {
-    return Response.json({ error: '手机号和密码不能为空' }, { status: 400 })
+    return Response.json({ error: '账号和密码不能为空' }, { status: 400 })
   }
 
   const user = await prisma.user.findUnique({ where: { phone } })

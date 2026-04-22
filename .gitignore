@@ -49,3 +49,4 @@ next-env.d.ts
 
 # Uploaded images
 /public/uploads/
+.claude/

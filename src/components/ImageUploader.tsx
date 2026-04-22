@@ -35,8 +35,30 @@ export function ImageUploader({
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
 
   const canUpload = existingImages.length < maxCount
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (canUpload) setDragging(true)
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragging(false)
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragging(false)
+    if (!canUpload) return
+    const files = e.dataTransfer.files
+    if (files.length > 0) handleFiles(files)
+  }
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
@@ -84,7 +106,12 @@ export function ImageUploader({
     <div>
       {label && <div className="text-xs text-gray-500 mb-2">{label}</div>}
 
-      <div className="grid grid-cols-3 gap-2">
+      <div
+        className={`grid grid-cols-3 gap-2 rounded-lg transition-colors ${dragging ? 'bg-primary/10 ring-2 ring-primary/30' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         {existingImages.map((img) => (
           <div key={img.id} className="relative aspect-square group">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -116,7 +143,7 @@ export function ImageUploader({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="aspect-square border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-amber-300 hover:text-amber-600 transition-colors disabled:opacity-50"
+              className="aspect-square border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-50"
             >
               {uploading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -134,7 +161,7 @@ export function ImageUploader({
                 type="button"
                 onClick={() => cameraInputRef.current?.click()}
                 disabled={uploading}
-                className="aspect-square border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-amber-300 hover:text-amber-600 transition-colors disabled:opacity-50"
+                className="aspect-square border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-50"
               >
                 <Camera className="w-5 h-5" />
                 <span className="text-xs">拍照</span>

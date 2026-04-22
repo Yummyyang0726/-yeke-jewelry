@@ -7,14 +7,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+// Using native selects for reliable value display
 import { Plus, Trash2 } from 'lucide-react'
 
 type Store = { id: number; name: string; shortName: string }
 type Factory = { id: number; name: string }
 
-type Stone = { stoneType: string; quantityWeight: string; unitPrice: string }
-type Material = { category: string; quantityWeight: string; gemSize: string }
+type Stone = { stoneType: string; quantityWeight: string; unitPrice: string; girdleCode: string; stoneNote: string }
+type Material = { category: string; quantityWeight: string; gemSize: string; girdleCode: string; materialNote: string }
 
 const CATEGORIES = ['戒指', '吊坠', '项链', '手镯', '耳饰', '胸针', '改款翻新', '其他']
 
@@ -39,11 +39,10 @@ export function NewOrderForm({
   const [laborFee, setLaborFee] = useState('')
   const [goldPrice, setGoldPrice] = useState('')
   const [materialDesc, setMaterialDesc] = useState('')
-  const [styleNotes, setStyleNotes] = useState('')
   const [remarks, setRemarks] = useState('')
-  const [deliveryDate, setDeliveryDate] = useState('')
+  const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0])
 
-  const [stones, setStones] = useState<Stone[]>([{ stoneType: '', quantityWeight: '', unitPrice: '' }])
+  const [stones, setStones] = useState<Stone[]>([{ stoneType: '', quantityWeight: '', unitPrice: '', girdleCode: '', stoneNote: '' }])
   const [materials, setMaterials] = useState<Material[]>([])
 
   function updateStone(i: number, field: keyof Stone, val: string) {
@@ -55,7 +54,7 @@ export function NewOrderForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!storeId || !factoryId || !customerName || !customerPhone || !category || !deliveryDate) {
+    if (!storeId || !factoryId || !customerName || !customerPhone || !category || !orderDate) {
       toast.error('请填写必填项')
       return
     }
@@ -77,9 +76,8 @@ export function NewOrderForm({
           laborFee,
           goldPrice,
           materialDesc,
-          styleNotes,
           remarks,
-          deliveryDate,
+          orderDate,
           stones: validStones,
           materials: validMaterials,
         }),
@@ -107,29 +105,21 @@ export function NewOrderForm({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">门店 *</Label>
-              <Select value={storeId} onValueChange={(val) => setStoreId(val ?? '')}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="选择门店" />
-                </SelectTrigger>
-                <SelectContent>
-                  {stores.map((s) => (
-                    <SelectItem key={s.id} value={String(s.id)}>{s.shortName}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select value={storeId} onChange={(e) => setStoreId(e.target.value)} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                <option value="">选择门店</option>
+                {stores.map((s) => (
+                  <option key={s.id} value={String(s.id)}>{s.shortName}</option>
+                ))}
+              </select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">指派工厂 *</Label>
-              <Select value={factoryId} onValueChange={(val) => setFactoryId(val ?? '')}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="选择工厂" />
-                </SelectTrigger>
-                <SelectContent>
-                  {factories.map((f) => (
-                    <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select value={factoryId} onChange={(e) => setFactoryId(e.target.value)} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                <option value="">选择工厂</option>
+                {factories.map((f) => (
+                  <option key={f.id} value={String(f.id)}>{f.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -147,16 +137,12 @@ export function NewOrderForm({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">定制类别 *</Label>
-              <Select value={category} onValueChange={(val) => setCategory(val ?? '')}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="选择类别" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select value={category} onChange={(e) => setCategory(e.target.value)} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                <option value="">选择类别</option>
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">尺寸</Label>
@@ -165,8 +151,8 @@ export function NewOrderForm({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">交货日期 *</Label>
-            <Input className="h-9 text-sm" type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} />
+            <Label className="text-xs">开单日期 *</Label>
+            <Input className="h-9 text-sm" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
           </div>
 
           {isBoss && (
@@ -197,35 +183,37 @@ export function NewOrderForm({
         </CardContent>
       </Card>
 
-      {/* Stones */}
+      {/* Stones - 来石记录 */}
       <Card className="shadow-none border-gray-200">
         <CardHeader className="pb-2 pt-4 px-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm text-gray-700">定制用石</CardTitle>
+            <CardTitle className="text-sm text-gray-700">来石记录</CardTitle>
             <button
               type="button"
-              onClick={() => setStones((prev) => [...prev, { stoneType: '', quantityWeight: '', unitPrice: '' }])}
-              className="text-xs text-amber-700 flex items-center gap-1 hover:text-amber-800"
+              onClick={() => setStones((prev) => [...prev, { stoneType: '', quantityWeight: '', unitPrice: '', girdleCode: '', stoneNote: '' }])}
+              className="text-xs text-primary flex items-center gap-1 hover:text-primary/80"
             >
               <Plus className="w-3.5 h-3.5" /> 添加
             </button>
           </div>
         </CardHeader>
-        <CardContent className="px-4 pb-4 space-y-3">
+        <CardContent className="px-4 pb-4 space-y-4">
           {stones.map((stone, i) => (
-            <div key={i} className="flex gap-2 items-start">
-              <div className="flex-1 grid grid-cols-2 gap-2">
-                <Input className="h-9 text-sm" value={stone.stoneType} onChange={(e) => updateStone(i, 'stoneType', e.target.value)} placeholder="石种（如：钻石）" />
-                <Input className="h-9 text-sm" value={stone.quantityWeight} onChange={(e) => updateStone(i, 'quantityWeight', e.target.value)} placeholder="数量/重量" />
-                {isBoss && (
-                  <Input className="h-9 text-sm col-span-2" type="number" value={stone.unitPrice} onChange={(e) => updateStone(i, 'unitPrice', e.target.value)} placeholder="石单价（元）" />
-                )}
-              </div>
+            <div key={i} className="relative border border-gray-100 rounded-lg p-3 space-y-2">
               {stones.length > 1 && (
-                <button type="button" onClick={() => setStones((prev) => prev.filter((_, idx) => idx !== i))} className="mt-1 text-gray-400 hover:text-red-500">
+                <button type="button" onClick={() => setStones((prev) => prev.filter((_, idx) => idx !== i))} className="absolute top-2 right-2 text-gray-400 hover:text-red-500">
                   <Trash2 className="w-4 h-4" />
                 </button>
               )}
+              <div className="grid grid-cols-2 gap-2">
+                <Input className="h-9 text-sm" value={stone.stoneType} onChange={(e) => updateStone(i, 'stoneType', e.target.value)} placeholder="石种（如：钻石）" />
+                <Input className="h-9 text-sm" value={stone.quantityWeight} onChange={(e) => updateStone(i, 'quantityWeight', e.target.value)} placeholder="数量/重量" />
+              </div>
+              <Input className="h-9 text-sm" value={stone.girdleCode} onChange={(e) => updateStone(i, 'girdleCode', e.target.value)} placeholder="腰码（如：GIA 2215832745）" />
+              {isBoss && (
+                <Input className="h-9 text-sm" type="number" value={stone.unitPrice} onChange={(e) => updateStone(i, 'unitPrice', e.target.value)} placeholder="石单价（元）" />
+              )}
+              <Input className="h-9 text-sm" value={stone.stoneNote} onChange={(e) => updateStone(i, 'stoneNote', e.target.value)} placeholder="备注（如：客户自带、需镶嵌）" />
             </div>
           ))}
         </CardContent>
@@ -236,59 +224,54 @@ export function NewOrderForm({
         <CardHeader className="pb-2 pt-4 px-4">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm text-gray-700">来料说明</CardTitle>
-            {materials.length < 3 && (
+            {materials.length < 5 && (
               <button
                 type="button"
-                onClick={() => setMaterials((prev) => [...prev, { category: '', quantityWeight: '', gemSize: '' }])}
-                className="text-xs text-amber-700 flex items-center gap-1 hover:text-amber-800"
+                onClick={() => setMaterials((prev) => [...prev, { category: '', quantityWeight: '', gemSize: '', girdleCode: '', materialNote: '' }])}
+                className="text-xs text-primary flex items-center gap-1 hover:text-primary/80"
               >
                 <Plus className="w-3.5 h-3.5" /> 添加
               </button>
             )}
           </div>
         </CardHeader>
-        <CardContent className="px-4 pb-4 space-y-3">
+        <CardContent className="px-4 pb-4 space-y-4">
           {materials.length === 0 && (
-            <p className="text-xs text-gray-400">点击"添加"填写来料信息（最多3组）</p>
+            <p className="text-xs text-gray-400">点击"添加"填写来料信息</p>
           )}
           {materials.map((mat, i) => (
-            <div key={i} className="flex gap-2 items-start">
-              <div className="flex-1 grid grid-cols-3 gap-2">
+            <div key={i} className="relative border border-gray-100 rounded-lg p-3 space-y-2">
+              <button type="button" onClick={() => setMaterials((prev) => prev.filter((_, idx) => idx !== i))} className="absolute top-2 right-2 text-gray-400 hover:text-red-500">
+                <Trash2 className="w-4 h-4" />
+              </button>
+              <div className="grid grid-cols-3 gap-2">
                 <Input className="h-9 text-sm" value={mat.category} onChange={(e) => updateMaterial(i, 'category', e.target.value)} placeholder="品类" />
                 <Input className="h-9 text-sm" value={mat.quantityWeight} onChange={(e) => updateMaterial(i, 'quantityWeight', e.target.value)} placeholder="数量/重量" />
                 <Input className="h-9 text-sm" value={mat.gemSize} onChange={(e) => updateMaterial(i, 'gemSize', e.target.value)} placeholder="宝石尺寸" />
               </div>
-              <button type="button" onClick={() => setMaterials((prev) => prev.filter((_, idx) => idx !== i))} className="mt-1 text-gray-400 hover:text-red-500">
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <Input className="h-9 text-sm" value={mat.girdleCode} onChange={(e) => updateMaterial(i, 'girdleCode', e.target.value)} placeholder="腰码" />
+              <Input className="h-9 text-sm" value={mat.materialNote} onChange={(e) => updateMaterial(i, 'materialNote', e.target.value)} placeholder="备注" />
             </div>
           ))}
         </CardContent>
       </Card>
 
-      {/* Notes */}
+      {/* Remarks */}
       <Card className="shadow-none border-gray-200">
         <CardHeader className="pb-3 pt-4 px-4">
-          <CardTitle className="text-sm text-gray-700">款式说明 / 备注</CardTitle>
+          <CardTitle className="text-sm text-gray-700">备注</CardTitle>
         </CardHeader>
-        <CardContent className="px-4 pb-4 space-y-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">款式说明</Label>
-            <textarea
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[80px] resize-none"
-              value={styleNotes}
-              onChange={(e) => setStyleNotes(e.target.value)}
-              placeholder="描述款式要求..."
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">备注</Label>
-            <Input className="h-9 text-sm" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="其他备注" />
-          </div>
+        <CardContent className="px-4 pb-4">
+          <textarea
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[80px] resize-none"
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            placeholder="款式要求、定制说明、其他备注..."
+          />
         </CardContent>
       </Card>
 
-      <Button type="submit" className="w-full bg-amber-700 hover:bg-amber-800 h-11" disabled={loading}>
+      <Button type="submit" className="w-full bg-primary hover:bg-primary/90 h-11" disabled={loading}>
         {loading ? '提交中...' : '提交订单'}
       </Button>
     </form>

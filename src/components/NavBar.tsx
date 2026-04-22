@@ -1,15 +1,14 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
 
 type Props = {
   userName: string
   role: string
+  title?: string
 }
 
-export function NavBar({ userName, role }: Props) {
+export function NavBar({ userName, role, title }: Props) {
   const router = useRouter()
 
   async function handleLogout() {
@@ -18,19 +17,27 @@ export function NavBar({ userName, role }: Props) {
     router.refresh()
   }
 
-  const isStore = role === 'boss' || role === 'employee'
+  const roleLabel =
+    role === 'boss' ? '管理员' : role === 'employee' ? '员工' : '工厂'
 
   return (
-    <header className="sticky top-0 z-50 bg-amber-700 text-white shadow-sm">
+    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-border">
       <div className="max-w-2xl mx-auto px-4 h-12 flex items-center justify-between">
-        <Link href={isStore ? '/dashboard' : '/factory'} className="font-bold text-lg tracking-wide">
-          叶客金匠
-        </Link>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="opacity-80">{userName}</span>
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-base tracking-wide text-foreground">
+            {title ?? '叶客金匠'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">
+            {userName}
+            <span className="ml-1 text-[10px] bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded-full">
+              {roleLabel}
+            </span>
+          </span>
           <button
             onClick={handleLogout}
-            className="opacity-80 hover:opacity-100 underline underline-offset-2"
+            className="text-muted-foreground hover:text-foreground transition-colors ml-1"
           >
             退出
           </button>

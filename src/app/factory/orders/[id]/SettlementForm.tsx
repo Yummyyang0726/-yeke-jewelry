@@ -91,15 +91,15 @@ export function SettlementForm({ orderId }: { orderId: number }) {
   }
 
   return (
-    <Card className="shadow-none border-amber-200 mb-4">
+    <Card className="shadow-none border-primary/20 mb-4">
       <CardHeader className="pb-2 pt-4 px-4">
         <button
           type="button"
           className="flex items-center justify-between w-full"
           onClick={() => setExpanded(!expanded)}
         >
-          <CardTitle className="text-sm text-amber-700">填写交货回单</CardTitle>
-          {expanded ? <ChevronUp className="w-4 h-4 text-amber-600" /> : <ChevronDown className="w-4 h-4 text-amber-600" />}
+          <CardTitle className="text-sm text-primary">填写交货回单</CardTitle>
+          {expanded ? <ChevronUp className="w-4 h-4 text-primary" /> : <ChevronDown className="w-4 h-4 text-primary" />}
         </button>
       </CardHeader>
 
@@ -167,15 +167,15 @@ export function SettlementForm({ orderId }: { orderId: number }) {
             <RowInput label="实际工费(元)" fieldKey="actualLaborFee" />
             <RowInput label="实际金重(g)" fieldKey="actualGoldWeight" />
             <div className="grid grid-cols-3 gap-2 items-center">
-              <Label className="text-xs font-semibold text-amber-700">实付合计 *</Label>
-              <Input className="h-9 text-sm col-span-2 border-amber-300 font-semibold" value={form.totalAmount} onChange={(e) => set('totalAmount', e.target.value)} placeholder="¥ 0" type="number" />
+              <Label className="text-xs font-semibold text-primary">实付合计 *</Label>
+              <Input className="h-9 text-sm col-span-2 border-primary/30 font-semibold" value={form.totalAmount} onChange={(e) => set('totalAmount', e.target.value)} placeholder="¥ 0" type="number" />
             </div>
           </div>
 
           <Button
             onClick={handleSubmit}
             disabled={loading}
-            className="w-full bg-amber-700 hover:bg-amber-800 h-11 mt-2"
+            className="w-full bg-primary hover:bg-primary/90 h-11 mt-2"
           >
             {loading ? '提交中...' : '提交结算单'}
           </Button>

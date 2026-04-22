@@ -2,7 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
-import { NavBar } from '@/components/NavBar'
+import { AppShell } from '@/components/AppShell'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronLeft } from 'lucide-react'
@@ -37,10 +37,28 @@ export default async function FactoryOrderDetailPage({ params }: Params) {
   if (!order) notFound()
   if (order.factoryId !== session.factoryId) redirect('/factory')
 
+  const deliveryItems = order.orderNo
+    ? await prisma.deliveryItem.findMany({
+        where: {
+          internalNumber: order.orderNo,
+          deliveryNote: { factoryId: session.factoryId! },
+        },
+        include: {
+          deliveryNote: {
+            select: {
+              id: true,
+              noteDate: true,
+              factoryNoteNumber: true,
+              paymentStatus: true,
+            },
+          },
+        },
+        orderBy: { id: 'asc' },
+      })
+    : []
+
   return (
-    <div className="min-h-screen">
-      <NavBar userName={session.name} role={session.role} />
-      <main className="max-w-2xl mx-auto px-4 py-4 pb-12">
+    <AppShell userName={session.name} role={session.role} hideBottomTabs>
         <div className="flex items-center gap-2 mb-4">
           <Link href="/factory" className="text-gray-500 hover:text-gray-700">
             <ChevronLeft className="w-5 h-5" />
@@ -74,7 +92,7 @@ export default async function FactoryOrderDetailPage({ params }: Params) {
                 <InfoRow label="来自门店" value={order.store.name} />
                 <InfoRow label="类别" value={order.category} />
                 {order.size && <InfoRow label="尺寸" value={order.size} />}
-                <InfoRow label="交货日期" value={order.deliveryDate} />
+                <InfoRow label="开单日期" value={order.orderDate} />
               </dl>
             </CardContent>
           </Card>
@@ -125,6 +143,43 @@ export default async function FactoryOrderDetailPage({ params }: Params) {
             </Card>
           )}
 
+          {/* Delivery note / 对账 info */}
+          {deliveryItems.length > 0 && (
+            <Card className="shadow-none border-gray-200">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-sm text-gray-700">出库对账</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 space-y-2">
+                {deliveryItems.map((it) => {
+                  const fee = it.feePerGram * it.goldWeight + it.feePerPiece * it.quantity
+                  return (
+                    <div key={it.id} className="border border-border rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-foreground">{it.deliveryNote.noteDate}</span>
+                          {it.deliveryNote.factoryNoteNumber && (
+                            <span className="text-xs text-muted-foreground">厂单号 {it.deliveryNote.factoryNoteNumber}</span>
+                          )}
+                        </div>
+                        <PaymentBadge status={it.deliveryNote.paymentStatus} />
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                        <span>
+                          <span className="inline-block px-1.5 py-0.5 mr-1 bg-amber-50 text-amber-700 rounded font-medium">
+                            {it.materialType || '18K'}
+                          </span>
+                          金重 {it.goldWeight.toFixed(2)}g
+                        </span>
+                        {fee > 0 && <span>工费 ¥{fee.toFixed(2)}</span>}
+                        <span>件数 {it.quantity}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Settlement summary if done */}
           {order.settlement && (
             <Card className="shadow-none border-gray-200 border-green-200">
@@ -167,8 +222,7 @@ export default async function FactoryOrderDetailPage({ params }: Params) {
             </Card>
           )}
         </div>
-      </main>
-    </div>
+    </AppShell>
   )
 }
 
@@ -178,5 +232,18 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <dt className="text-gray-500">{label}</dt>
       <dd className="text-right text-gray-800">{value}</dd>
     </>
+  )
+}
+
+function PaymentBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    '未付': 'bg-red-50 text-red-600',
+    '部分付': 'bg-amber-50 text-amber-600',
+    '已付': 'bg-green-50 text-green-600',
+  }
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${styles[status] ?? 'bg-gray-100 text-gray-600'}`}>
+      {status}
+    </span>
   )
 }
