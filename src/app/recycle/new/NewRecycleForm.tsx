@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Trash2, Camera, Check, Loader2, Mic, UserCheck } from 'lucide-react'
+import { Plus, Trash2, Camera, Check, Loader2, Mic, UserCheck, CreditCard } from 'lucide-react'
 import { SignaturePad } from '@/components/SignaturePad'
+import { getStaffForStore, OTHER_OPTION } from '@/lib/recycle-staff'
+import { compressImage } from '@/lib/client-image'
 
 type Store = { id: number; name: string; shortName: string }
 
@@ -16,7 +18,16 @@ type Item = {
   unitPrice: string
 }
 
+type PaymentMethod = '' | 'bank' | 'alipay' | 'wechat' | 'other'
+
 const MATERIAL_OPTIONS = ['足金', 'K金', '铂金', '银', '其他']
+
+const PAYMENT_OPTIONS: { value: Exclude<PaymentMethod, ''>; label: string }[] = [
+  { value: 'bank', label: '银行卡' },
+  { value: 'alipay', label: '支付宝' },
+  { value: 'wechat', label: '微信' },
+  { value: 'other', label: '其他' },
+]
 
 function newItem(): Item {
   return {
@@ -35,6 +46,12 @@ function computeAmount(w: string, p: string): number {
   return Number((wn * pn).toFixed(2))
 }
 
+function formatCardNumber(digits: string): string {
+  // 每 4 位一空格显示（存储仍去空格）
+  const clean = digits.replace(/\D/g, '').slice(0, 19)
+  return clean.replace(/(.{4})/g, '$1 ').trim()
+}
+
 export function NewRecycleForm({ stores }: { stores: Store[] }) {
   const router = useRouter()
   const [storeId, setStoreId] = useState<string>(stores[0]?.id?.toString() ?? '')
@@ -46,6 +63,25 @@ export function NewRecycleForm({ stores }: { stores: Store[] }) {
   const [consent, setConsent] = useState(false)
   const [items, setItems] = useState<Item[]>([newItem()])
   const [signature, setSignature] = useState<string | null>(null)
+
+  // 登记人：下拉 + "其他"时弹手填
+  const [operatorSelect, setOperatorSelect] = useState<string>('')
+  const [operatorOther, setOperatorOther] = useState<string>('')
+
+  // 付款方式 + 银行卡
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('')
+  const [paymentOtherDesc, setPaymentOtherDesc] = useState('')
+  const [bankName, setBankName] = useState('')
+  const [bankCardNumber, setBankCardNumber] = useState('') // 纯数字字符串
+  const [bankcardFile, setBankcardFile] = useState<File | null>(null)
+  const [bankcardPreview, setBankcardPreview] = useState<string | null>(null)
+  const bankcardInputRef = useRef<HTMLInputElement>(null)
+  const [bankOcr, setBankOcr] = useState<
+    | { status: 'idle' }
+    | { status: 'loading' }
+    | { status: 'ok'; filled: { cardNumber: boolean; bankName: boolean } }
+    | { status: 'error'; message: string }
+  >({ status: 'idle' })
 
   const [frontFile, setFrontFile] = useState<File | null>(null)
   const [backFile, setBackFile] = useState<File | null>(null)
@@ -73,6 +109,23 @@ export function NewRecycleForm({ stores }: { stores: Store[] }) {
     | { status: 'found'; phone: string; phoneMasked: string; lastRecordDate: string; used: boolean }
     | { status: 'notfound' }
   >({ status: 'idle' })
+
+  // 当前选中门店（用于取对应员工名单）
+  const selectedStore = useMemo(
+    () => stores.find((s) => String(s.id) === storeId),
+    [stores, storeId]
+  )
+  const staffList = useMemo(
+    () => (selectedStore ? getStaffForStore(selectedStore.shortName) : [OTHER_OPTION]),
+    [selectedStore]
+  )
+  // 切换门店时，如之前选中的名字不在新列表里，重置登记人选择
+  useEffect(() => {
+    if (operatorSelect && !staffList.includes(operatorSelect)) {
+      setOperatorSelect('')
+      setOperatorOther('')
+    }
+  }, [staffList, operatorSelect])
 
   // 身份证号完整（18 位合法）后自动查历史手机号
   useEffect(() => {
@@ -164,20 +217,68 @@ export function NewRecycleForm({ stores }: { stores: Store[] }) {
     }
   }
 
-  function onPickFront(f: File | null) {
-    setFrontFile(f)
-    setFrontPreview(f ? URL.createObjectURL(f) : null)
-    if (f) {
-      // 异步 OCR，不阻塞照片预览
-      runOcr(f)
-    } else {
-      setOcr({ status: 'idle' })
+  async function runBankOcr(file: File) {
+    setBankOcr({ status: 'loading' })
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/recycle/ocr-bankcard', { method: 'POST', body: fd })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setBankOcr({ status: 'error', message: data.error || '银行卡识别失败，请手填' })
+        return
+      }
+      const filled = { cardNumber: false, bankName: false }
+      if (data.cardNumber && !bankCardNumber.trim()) {
+        setBankCardNumber(data.cardNumber)
+        filled.cardNumber = true
+      }
+      if (data.bankName && !bankName.trim()) {
+        setBankName(data.bankName)
+        filled.bankName = true
+      }
+      setBankOcr({ status: 'ok', filled })
+    } catch {
+      setBankOcr({ status: 'error', message: '网络异常，OCR 跳过，请手填' })
     }
   }
 
-  function onPickBack(f: File | null) {
+  async function onPickFront(raw: File | null) {
+    if (!raw) {
+      setFrontFile(null)
+      setFrontPreview(null)
+      setOcr({ status: 'idle' })
+      return
+    }
+    // 压缩后同一份用于预览 / 上传 / OCR
+    const f = await compressImage(raw)
+    setFrontFile(f)
+    setFrontPreview(URL.createObjectURL(f))
+    runOcr(f) // 非阻塞
+  }
+
+  async function onPickBack(raw: File | null) {
+    if (!raw) {
+      setBackFile(null)
+      setBackPreview(null)
+      return
+    }
+    const f = await compressImage(raw)
     setBackFile(f)
-    setBackPreview(f ? URL.createObjectURL(f) : null)
+    setBackPreview(URL.createObjectURL(f))
+  }
+
+  async function onPickBankcard(raw: File | null) {
+    if (!raw) {
+      setBankcardFile(null)
+      setBankcardPreview(null)
+      setBankOcr({ status: 'idle' })
+      return
+    }
+    const f = await compressImage(raw)
+    setBankcardFile(f)
+    setBankcardPreview(URL.createObjectURL(f))
+    runBankOcr(f) // 非阻塞
   }
 
   async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
@@ -185,7 +286,12 @@ export function NewRecycleForm({ stores }: { stores: Store[] }) {
     return res.blob()
   }
 
-  async function uploadOne(recordId: number, kind: 'front' | 'back' | 'signature', blob: Blob, filename: string) {
+  async function uploadOne(
+    recordId: number,
+    kind: 'front' | 'back' | 'signature' | 'bankcard',
+    blob: Blob,
+    filename: string
+  ) {
     const fd = new FormData()
     fd.append('kind', kind)
     fd.append('file', blob, filename)
@@ -200,6 +306,26 @@ export function NewRecycleForm({ stores }: { stores: Store[] }) {
     e.preventDefault()
     if (submitting) return
     if (!storeId) return toast.error('请选择门店')
+
+    // 登记人
+    if (!operatorSelect) return toast.error('请选择登记人')
+    const operatorDisplayName =
+      operatorSelect === OTHER_OPTION ? operatorOther.trim() : operatorSelect
+    if (!operatorDisplayName) return toast.error('请填写登记人姓名')
+
+    // 付款方式
+    if (!paymentMethod) return toast.error('请选择付款方式')
+    if (paymentMethod === 'other' && !paymentOtherDesc.trim()) {
+      return toast.error('请填写付款方式说明')
+    }
+    const cardDigits = bankCardNumber.replace(/\D/g, '')
+    if (paymentMethod === 'bank') {
+      if (!bankName.trim()) return toast.error('请填写或识别银行名')
+      if (!/^\d{12,19}$/.test(cardDigits)) {
+        return toast.error('银行卡号应为 12-19 位数字')
+      }
+    }
+
     if (!customerName.trim()) return toast.error('请填写客户姓名')
     if (!/^(\d{17}[\dXx]|\d{15})$/.test(idNumber.trim())) {
       return toast.error('身份证号格式不正确')
@@ -236,6 +362,11 @@ export function NewRecycleForm({ stores }: { stores: Store[] }) {
         phone: phone.trim(),
         remarks: remarks.trim(),
         consentAccepted: true,
+        operatorDisplayName,
+        paymentMethod,
+        paymentOtherDesc: paymentMethod === 'other' ? paymentOtherDesc.trim() : '',
+        bankName: paymentMethod === 'bank' ? bankName.trim() : '',
+        bankCardNumber: paymentMethod === 'bank' ? cardDigits : '',
         items: items.map((it) => ({
           material: it.material,
           purity: Number(it.purity).toFixed(2), // 2 位小数字符串
@@ -256,13 +387,16 @@ export function NewRecycleForm({ stores }: { stores: Store[] }) {
       }
       const recordId = data.id as number
 
-      // 上传照片 + 签名（失败不阻止成功提示，但给出警告让店员补传）
+      // 上传照片 + 签名 + 银行卡原图（失败不阻止成功提示，但给出警告让店员补传）
       const uploads: Promise<void>[] = []
       if (frontFile) uploads.push(uploadOne(recordId, 'front', frontFile, frontFile.name || 'front.jpg'))
       if (backFile) uploads.push(uploadOne(recordId, 'back', backFile, backFile.name || 'back.jpg'))
       if (signature) {
         const sigBlob = await dataUrlToBlob(signature)
         uploads.push(uploadOne(recordId, 'signature', sigBlob, 'signature.png'))
+      }
+      if (paymentMethod === 'bank' && bankcardFile) {
+        uploads.push(uploadOne(recordId, 'bankcard', bankcardFile, bankcardFile.name || 'bankcard.jpg'))
       }
       try {
         await Promise.all(uploads)
@@ -308,6 +442,33 @@ export function NewRecycleForm({ stores }: { stores: Store[] }) {
               required
             />
           </div>
+        </div>
+
+        {/* 登记人 */}
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">登记人 *</label>
+          <select
+            value={operatorSelect}
+            onChange={(e) => setOperatorSelect(e.target.value)}
+            className="w-full h-9 text-sm rounded-md border border-gray-300 bg-white px-2"
+            required
+          >
+            <option value="">请选择…</option>
+            {staffList.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+          {operatorSelect === OTHER_OPTION && (
+            <input
+              value={operatorOther}
+              onChange={(e) => setOperatorOther(e.target.value)}
+              placeholder="请填写登记人姓名"
+              className="mt-2 w-full h-9 text-sm rounded-md border border-gray-300 bg-white px-2"
+              required
+            />
+          )}
         </div>
       </section>
 
@@ -412,6 +573,109 @@ export function NewRecycleForm({ stores }: { stores: Store[] }) {
           </span>
           <span className="font-medium text-gray-900">¥{totalAmount.toFixed(2)}</span>
         </div>
+      </section>
+
+      {/* 付款方式 */}
+      <section className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+        <h3 className="text-sm font-medium text-gray-900">付款方式 *</h3>
+        <div className="grid grid-cols-4 gap-2">
+          {PAYMENT_OPTIONS.map((opt) => {
+            const active = paymentMethod === opt.value
+            return (
+              <button
+                type="button"
+                key={opt.value}
+                onClick={() => setPaymentMethod(opt.value)}
+                className={`h-9 text-sm rounded-md border transition ${
+                  active
+                    ? 'border-gray-900 bg-gray-900 text-white'
+                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {paymentMethod === 'other' && (
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">付款方式说明 *</label>
+            <input
+              value={paymentOtherDesc}
+              onChange={(e) => setPaymentOtherDesc(e.target.value)}
+              placeholder="如：现金、商户记账等"
+              className="w-full h-9 text-sm rounded-md border border-gray-300 bg-white px-2"
+              required
+            />
+          </div>
+        )}
+
+        {paymentMethod === 'bank' && (
+          <div className="rounded-md border border-gray-200 bg-gray-50 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                <CreditCard className="w-3.5 h-3.5" /> 银行卡信息
+              </span>
+              <span className="text-[11px] text-gray-400">拍照自动识别</span>
+            </div>
+
+            {/* 银行卡正面照（触发 OCR） */}
+            <BankCardPhotoSlot
+              preview={bankcardPreview}
+              inputRef={bankcardInputRef}
+              onPick={onPickBankcard}
+            />
+
+            {/* OCR 状态条 */}
+            {bankOcr.status === 'loading' && (
+              <div className="inline-flex items-center gap-1 text-[11px] text-gray-500">
+                <Loader2 className="w-3 h-3 animate-spin" /> 正在识别银行卡…
+              </div>
+            )}
+            {bankOcr.status === 'ok' &&
+              (bankOcr.filled.cardNumber || bankOcr.filled.bankName) && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900">
+                  ✨ OCR 已自动填入
+                  {bankOcr.filled.bankName && <span className="ml-1">银行</span>}
+                  {bankOcr.filled.bankName && bankOcr.filled.cardNumber && <span>、</span>}
+                  {bankOcr.filled.cardNumber && <span>卡号</span>}
+                  <span className="ml-1 font-medium">· 请核对后再提交</span>
+                </div>
+              )}
+            {bankOcr.status === 'error' && (
+              <div className="text-[11px] text-gray-500">⚠️ {bankOcr.message}</div>
+            )}
+
+            <div>
+              <label className="block text-[11px] text-gray-400 mb-0.5">银行 *</label>
+              <input
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+                placeholder="如：工商银行"
+                className="w-full h-9 text-sm rounded-md border border-gray-300 bg-white px-2"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-gray-400 mb-0.5">
+                卡号 * <span className="text-gray-300">12-19 位</span>
+              </label>
+              <input
+                value={formatCardNumber(bankCardNumber)}
+                onChange={(e) => setBankCardNumber(e.target.value.replace(/\D/g, '').slice(0, 19))}
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="识别后自动填入，或手填"
+                className="w-full h-9 text-sm rounded-md border border-gray-300 bg-white px-2 font-mono tracking-wider"
+                required
+              />
+              <p className="mt-1 text-[11px] text-gray-400">
+                卡号将加密保存，列表/小票仅显示后 4 位，老板可查明文
+              </p>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* 身份证正反面（客户接受价格后再拍照登记；OCR 自动回填下方姓名+身份证号） */}
@@ -649,6 +913,43 @@ function IdPhotoSlot({
           <div className="flex flex-col items-center gap-1 text-xs">
             <Camera className="w-5 h-5" />
             <span>拍照 / 选择</span>
+          </div>
+        )}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => onPick(e.target.files?.[0] ?? null)}
+      />
+    </div>
+  )
+}
+
+function BankCardPhotoSlot({
+  preview,
+  inputRef,
+  onPick,
+}: {
+  preview: string | null
+  inputRef: React.RefObject<HTMLInputElement | null>
+  onPick: (f: File | null) => void
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="relative aspect-[1.586/1] w-full rounded-md border-2 border-dashed border-gray-300 bg-white overflow-hidden flex items-center justify-center text-gray-400 hover:border-gray-400"
+      >
+        {preview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview} alt="银行卡" className="w-full h-full object-cover" />
+        ) : (
+          <div className="flex flex-col items-center gap-1 text-xs">
+            <Camera className="w-5 h-5" />
+            <span>拍卡正面 / 选择</span>
           </div>
         )}
       </button>

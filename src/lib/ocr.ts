@@ -125,3 +125,60 @@ export async function recognizeIdFront(buffer: Buffer): Promise<OcrResult> {
     address: w['住址']?.words,
   }
 }
+
+// ===== 银行卡 OCR =====
+// 百度银行卡识别接口：https://ai.baidu.com/ai-doc/OCR/ak3h7xxg3
+// 返回 bank_card_number / bank_name / bank_card_type（debit/credit/...）
+// 这里只需卡号和银行名；卡号会带空格，调用方自己去空格。
+
+export type BankCardOcrResult = {
+  cardNumber: string // 纯数字，不含空格
+  bankName: string
+  cardType: string // debit / credit / unknown
+}
+
+type BaiduBankCardResponse = {
+  log_id?: number
+  result?: {
+    bank_card_number?: string
+    bank_name?: string
+    bank_card_type?: number // 0 未识别 / 1 借记卡 / 2 贷记卡 / 3 准贷记卡 / 4 预付卡
+    valid_date?: string
+  }
+  error_code?: number
+  error_msg?: string
+}
+
+export async function recognizeBankCard(buffer: Buffer): Promise<BankCardOcrResult> {
+  const token = await getAccessToken()
+  const url = `https://aip.baidubce.com/rest/2.0/ocr/v1/bankcard?access_token=${encodeURIComponent(token)}`
+  const body = new URLSearchParams()
+  body.set('image', buffer.toString('base64'))
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  })
+  if (!res.ok) {
+    throw new Error(`百度银行卡 OCR HTTP ${res.status}`)
+  }
+  const data = (await res.json()) as BaiduBankCardResponse
+
+  if (data.error_code) {
+    if (data.error_code === 110 || data.error_code === 111) {
+      tokenCache = null
+    }
+    throw new Error(`百度银行卡 OCR 错误 ${data.error_code}: ${data.error_msg}`)
+  }
+
+  const r = data.result || {}
+  const cardNumber = (r.bank_card_number || '').replace(/\s+/g, '')
+  const bankName = r.bank_name || ''
+  const typeMap: Record<number, string> = { 0: 'unknown', 1: 'debit', 2: 'credit', 3: 'credit', 4: 'prepaid' }
+  return {
+    cardNumber,
+    bankName,
+    cardType: typeMap[r.bank_card_type ?? 0] || 'unknown',
+  }
+}

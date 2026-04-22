@@ -23,6 +23,7 @@ type ItemInput = {
 }
 
 const ALLOWED_MATERIALS = ['足金', 'K金', '铂金', '银', '其他']
+const ALLOWED_PAYMENT_METHODS = ['bank', 'alipay', 'wechat', 'other']
 
 export async function GET(req: NextRequest) {
   const session = await getSession()
@@ -115,6 +116,15 @@ export async function POST(req: NextRequest) {
   const consentAccepted: boolean = body.consentAccepted === true
   const items: ItemInput[] = Array.isArray(body.items) ? body.items : []
 
+  // 登记人：下拉选中的姓名或"其他"时手填的姓名；session 登录名仍存入 operatorName 审计
+  const operatorDisplayName: string = (body.operatorDisplayName ?? '').trim()
+
+  // 付款方式 + 银行卡（B 方案：加密存全号）
+  const paymentMethod: string = (body.paymentMethod ?? '').trim()
+  const paymentOtherDesc: string = (body.paymentOtherDesc ?? '').trim()
+  const bankName: string = (body.bankName ?? '').trim()
+  const bankCardNumber: string = (body.bankCardNumber ?? '').replace(/\s+/g, '')
+
   if (!storeId) return Response.json({ error: '请选择门店' }, { status: 400 })
   if (!recordDate) return Response.json({ error: '请选择日期' }, { status: 400 })
   if (!customerName) return Response.json({ error: '请填写客户姓名' }, { status: 400 })
@@ -126,6 +136,23 @@ export async function POST(req: NextRequest) {
   }
   if (!consentAccepted) {
     return Response.json({ error: '请确认已阅读并同意隐私政策' }, { status: 400 })
+  }
+  if (!operatorDisplayName) {
+    return Response.json({ error: '请选择登记人' }, { status: 400 })
+  }
+  if (!paymentMethod || !ALLOWED_PAYMENT_METHODS.includes(paymentMethod)) {
+    return Response.json({ error: '请选择付款方式' }, { status: 400 })
+  }
+  if (paymentMethod === 'other' && !paymentOtherDesc) {
+    return Response.json({ error: '请填写付款方式说明' }, { status: 400 })
+  }
+  if (paymentMethod === 'bank') {
+    if (!/^\d{12,19}$/.test(bankCardNumber)) {
+      return Response.json({ error: '银行卡号应为 12-19 位数字' }, { status: 400 })
+    }
+    if (!bankName) {
+      return Response.json({ error: '请填写银行名' }, { status: 400 })
+    }
   }
   if (items.length === 0) {
     return Response.json({ error: '至少填写一条回购物品' }, { status: 400 })
@@ -158,6 +185,10 @@ export async function POST(req: NextRequest) {
   const idNumberEncrypted = encryptField(idNumber)
   const idNumberLast4 = extractIdLast4(idNumber)
 
+  // 银行卡：卡号加密整存（B 方案），仅 boss 可解；另存后 4 位明文给店员对账用
+  const bankCardEncrypted = paymentMethod === 'bank' ? encryptField(bankCardNumber) : ''
+  const bankCardLast4 = paymentMethod === 'bank' ? bankCardNumber.slice(-4) : ''
+
   const totalWeight = items.reduce((s, i) => s + (Number(i.weightG) || 0), 0)
   const totalAmount = items.reduce((s, i) => s + (Number(i.amount) || 0), 0)
 
@@ -172,8 +203,10 @@ export async function POST(req: NextRequest) {
           customerName, idNumberEncrypted, idNumberLast4, phone, isMinor,
           consentAccepted, consentAt,
           remarks, totalAmount, totalWeight,
-          status, operatorUserId, operatorName
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, datetime('now'), ?, ?, ?, 'completed', ?, ?)`
+          status, operatorUserId, operatorName, operatorDisplayName,
+          paymentMethod, paymentOtherDesc,
+          bankName, bankCardLast4, bankCardEncrypted
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, datetime('now'), ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         recordNo,
@@ -187,7 +220,13 @@ export async function POST(req: NextRequest) {
         totalAmount,
         totalWeight,
         session.userId,
-        session.name
+        session.name,
+        operatorDisplayName,
+        paymentMethod,
+        paymentMethod === 'other' ? paymentOtherDesc : '',
+        paymentMethod === 'bank' ? bankName : '',
+        bankCardLast4,
+        bankCardEncrypted
       )
     const recordId = Number(res.lastInsertRowid)
     const insertItem = db.prepare(

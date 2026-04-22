@@ -68,6 +68,14 @@ function initSchema(conn: Database.Database) {
       status             TEXT NOT NULL DEFAULT 'completed',
       operatorUserId     INTEGER,
       operatorName       TEXT NOT NULL DEFAULT '',
+      operatorDisplayName TEXT NOT NULL DEFAULT '',
+
+      paymentMethod      TEXT NOT NULL DEFAULT '',
+      paymentOtherDesc   TEXT NOT NULL DEFAULT '',
+      bankName           TEXT NOT NULL DEFAULT '',
+      bankCardLast4      TEXT NOT NULL DEFAULT '',
+      bankCardEncrypted  TEXT NOT NULL DEFAULT '',
+      bankCardPath       TEXT,
 
       createdAt          TEXT NOT NULL DEFAULT (datetime('now')),
       updatedAt          TEXT NOT NULL DEFAULT (datetime('now')),
@@ -102,13 +110,34 @@ function initSchema(conn: Database.Database) {
     );
   `)
 
-  // 增量升级：给 RecycleItem 加 material 列（材料分类，与光谱仪实测成色配对）
-  // 旧记录 material 留空字符串；新记录都会填。purity 字段含义从 '足金999' 这种字符串
-  // 变为纯百分比字符串如 '99.20'，旧记录保留原格式不迁移。
-  const itemCols = conn.prepare('PRAGMA table_info(RecycleItem)').all() as { name: string }[]
-  if (!itemCols.some((c) => c.name === 'material')) {
-    conn.exec(`ALTER TABLE RecycleItem ADD COLUMN material TEXT NOT NULL DEFAULT ''`)
+  // 增量升级：用 try/catch 吞"duplicate column"错误，兼容 next build 期
+  // 多 worker 并发打开同一个 DB 时的竞争（PRAGMA 检查后 ALTER 之间的窗口）
+  const tryAdd = (table: string, name: string, decl: string) => {
+    try {
+      conn.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${decl}`)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (!/duplicate column name/i.test(msg)) throw e
+    }
   }
+
+  // RecycleItem: material（材料分类，与光谱仪实测成色配对）
+  tryAdd('RecycleItem', 'material', `TEXT NOT NULL DEFAULT ''`)
+
+  // RecycleRecord: 登记人显示名、付款方式、银行卡信息
+  // - operatorDisplayName: 下拉选中的登记人姓名（与 operatorName = session 登录名并存）
+  // - paymentMethod: 'bank' | 'alipay' | 'wechat' | 'other'
+  // - paymentOtherDesc: paymentMethod='other' 时的说明
+  // - bankName / bankCardLast4: 明文，店员老板都可见
+  // - bankCardEncrypted: AES-256-GCM 加密的完整卡号，仅老板可解密（B 方案）
+  // - bankCardPath: 银行卡原图 COS 私有 key（可选）
+  tryAdd('RecycleRecord', 'operatorDisplayName', `TEXT NOT NULL DEFAULT ''`)
+  tryAdd('RecycleRecord', 'paymentMethod', `TEXT NOT NULL DEFAULT ''`)
+  tryAdd('RecycleRecord', 'paymentOtherDesc', `TEXT NOT NULL DEFAULT ''`)
+  tryAdd('RecycleRecord', 'bankName', `TEXT NOT NULL DEFAULT ''`)
+  tryAdd('RecycleRecord', 'bankCardLast4', `TEXT NOT NULL DEFAULT ''`)
+  tryAdd('RecycleRecord', 'bankCardEncrypted', `TEXT NOT NULL DEFAULT ''`)
+  tryAdd('RecycleRecord', 'bankCardPath', `TEXT`)
 }
 
 // ===== 类型 =====
@@ -144,6 +173,13 @@ export type RecycleRecordRow = {
   status: string
   operatorUserId: number | null
   operatorName: string
+  operatorDisplayName: string
+  paymentMethod: string // '' | 'bank' | 'alipay' | 'wechat' | 'other'
+  paymentOtherDesc: string
+  bankName: string
+  bankCardLast4: string
+  bankCardEncrypted: string
+  bankCardPath: string | null
   createdAt: string
   updatedAt: string
 }

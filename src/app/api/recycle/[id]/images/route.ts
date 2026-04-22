@@ -6,10 +6,11 @@ import { uploadPrivateToCOS } from '@/lib/cos'
 
 type Params = { params: Promise<{ id: string }> }
 
-const KIND_TO_COL: Record<string, 'idFrontPath' | 'idBackPath' | 'signaturePath'> = {
+const KIND_TO_COL: Record<string, 'idFrontPath' | 'idBackPath' | 'signaturePath' | 'bankCardPath'> = {
   front: 'idFrontPath',
   back: 'idBackPath',
   signature: 'signaturePath',
+  bankcard: 'bankCardPath',
 }
 
 /**
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const kind = String(form.get('kind') || '')
   const file = form.get('file') as File | null
   const col = KIND_TO_COL[kind]
-  if (!col) return Response.json({ error: 'kind 必须为 front/back/signature' }, { status: 400 })
+  if (!col) return Response.json({ error: 'kind 必须为 front/back/signature/bankcard' }, { status: 400 })
   if (!file) return Response.json({ error: '缺少文件' }, { status: 400 })
   if (!file.type.startsWith('image/')) {
     return Response.json({ error: '只接受图片文件' }, { status: 400 })

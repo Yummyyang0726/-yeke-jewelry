@@ -38,6 +38,27 @@ export default async function RecycleDetailPage({ params }: Params) {
   const frontUrl = sign(record.idFrontPath)
   const backUrl = sign(record.idBackPath)
   const signatureUrl = sign(record.signaturePath)
+  const bankcardUrl = sign(record.bankCardPath)
+
+  const paymentLabel = formatPaymentMethod(
+    record.paymentMethod,
+    record.paymentOtherDesc
+  )
+
+  // 银行卡号显示：默认后 4 位，仅 boss 可见明文
+  let bankCardDisplay: string | null = null
+  if (record.paymentMethod === 'bank') {
+    if (record.bankCardLast4) {
+      bankCardDisplay = `**** **** **** ${record.bankCardLast4}`
+    }
+    if (canDecryptRecycleId(session.role) && record.bankCardEncrypted) {
+      const r = safeDecryptField(record.bankCardEncrypted)
+      if (r.ok) {
+        const grouped = r.value.replace(/(.{4})/g, '$1 ').trim()
+        bankCardDisplay = `${bankCardDisplay ?? ''}（明文：${grouped}）`
+      }
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -68,7 +89,21 @@ export default async function RecycleDetailPage({ params }: Params) {
         <Row k="身份证" v={idNumber} mono />
         <Row k="手机号" v={record.phone} mono />
         {record.remarks && <Row k="备注" v={record.remarks} />}
-        <Row k="经办人" v={record.operatorName} />
+        {paymentLabel && <Row k="付款方式" v={paymentLabel} />}
+        {record.paymentMethod === 'bank' && record.bankName && (
+          <Row k="银行" v={record.bankName} />
+        )}
+        {record.paymentMethod === 'bank' && bankCardDisplay && (
+          <Row k="银行卡号" v={bankCardDisplay} mono />
+        )}
+        <Row
+          k="登记人"
+          v={
+            record.operatorDisplayName
+              ? `${record.operatorDisplayName}（账号：${record.operatorName}）`
+              : record.operatorName
+          }
+        />
         <Row k="录入时间" v={record.createdAt} />
         <Row k="状态" v={record.status} />
       </section>
@@ -111,6 +146,9 @@ export default async function RecycleDetailPage({ params }: Params) {
           <PhotoSlot label="身份证正面" url={frontUrl} />
           <PhotoSlot label="身份证背面" url={backUrl} />
           <PhotoSlot label="客户签名" url={signatureUrl} />
+          {record.paymentMethod === 'bank' && (
+            <PhotoSlot label="银行卡" url={bankcardUrl} />
+          )}
         </div>
         <p className="mt-2 text-[11px] text-gray-400">
           附件通过短时签名 URL 访问，每次刷新重新生成，勿截屏转发。
@@ -130,6 +168,20 @@ function formatMaterialPurity(material: string, purity: string): string {
   const pStr = purity && Number.isFinite(pn) ? `${pn.toFixed(2)}%` : purity
   if (!material) return pStr || '—'
   return pStr ? `${material} ${pStr}` : material
+}
+
+const PAYMENT_LABELS: Record<string, string> = {
+  bank: '银行卡',
+  alipay: '支付宝',
+  wechat: '微信',
+  other: '其他',
+}
+
+function formatPaymentMethod(method: string, otherDesc: string): string {
+  if (!method) return ''
+  const base = PAYMENT_LABELS[method] ?? method
+  if (method === 'other' && otherDesc) return `${base}（${otherDesc}）`
+  return base
 }
 
 function Row({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
