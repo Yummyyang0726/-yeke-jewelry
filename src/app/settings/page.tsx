@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { getSession } from '@/lib/session'
 import { AppShell } from '@/components/AppShell'
 import { Card, CardContent } from '@/components/ui/card'
-import { Users, Factory, Store, ChevronRight, Coins, QrCode } from 'lucide-react'
+import { Users, Factory, Store, ChevronRight, Coins } from 'lucide-react'
 
 export default async function SettingsPage() {
   const session = await getSession()
@@ -35,12 +35,6 @@ export default async function SettingsPage() {
             desc: '管理回购单据编号前缀',
             href: '/settings/recycle-stores',
             icon: Store,
-          },
-          {
-            label: '客户自助二维码',
-            desc: '生成并下载客户扫码登记二维码',
-            href: '/settings/qrcodes',
-            icon: QrCode,
           },
         ]
       : []),
