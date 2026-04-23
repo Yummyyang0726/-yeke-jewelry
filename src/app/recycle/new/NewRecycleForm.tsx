@@ -413,6 +413,14 @@ export function NewRecycleForm({ stores }: { stores: Store[] }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {/* 顶部简短告知 */}
+      <div className="bg-amber-50 border-l-4 border-amber-400 rounded-r-lg px-4 py-3">
+        <p className="text-xs text-amber-900 font-medium mb-0.5">📋 回购登记须知</p>
+        <p className="text-xs text-amber-800/80">
+          本次登记信息用于旧金回购合规存档，身份证信息加密保存，仅限内部查询使用。
+        </p>
+      </div>
+
       {/* 门店 + 日期 */}
       <section className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
         <div className="grid grid-cols-2 gap-3">
@@ -575,109 +583,6 @@ export function NewRecycleForm({ stores }: { stores: Store[] }) {
         </div>
       </section>
 
-      {/* 付款方式 */}
-      <section className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-        <h3 className="text-sm font-medium text-gray-900">付款方式 *</h3>
-        <div className="grid grid-cols-4 gap-2">
-          {PAYMENT_OPTIONS.map((opt) => {
-            const active = paymentMethod === opt.value
-            return (
-              <button
-                type="button"
-                key={opt.value}
-                onClick={() => setPaymentMethod(opt.value)}
-                className={`h-9 text-sm rounded-md border transition ${
-                  active
-                    ? 'border-gray-900 bg-gray-900 text-white'
-                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                {opt.label}
-              </button>
-            )
-          })}
-        </div>
-
-        {paymentMethod === 'other' && (
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">付款方式说明 *</label>
-            <input
-              value={paymentOtherDesc}
-              onChange={(e) => setPaymentOtherDesc(e.target.value)}
-              placeholder="如：现金、商户记账等"
-              className="w-full h-9 text-sm rounded-md border border-gray-300 bg-white px-2"
-              required
-            />
-          </div>
-        )}
-
-        {paymentMethod === 'bank' && (
-          <div className="rounded-md border border-gray-200 bg-gray-50 p-3 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-                <CreditCard className="w-3.5 h-3.5" /> 银行卡信息
-              </span>
-              <span className="text-[11px] text-gray-400">拍照自动识别</span>
-            </div>
-
-            {/* 银行卡正面照（触发 OCR） */}
-            <BankCardPhotoSlot
-              preview={bankcardPreview}
-              inputRef={bankcardInputRef}
-              onPick={onPickBankcard}
-            />
-
-            {/* OCR 状态条 */}
-            {bankOcr.status === 'loading' && (
-              <div className="inline-flex items-center gap-1 text-[11px] text-gray-500">
-                <Loader2 className="w-3 h-3 animate-spin" /> 正在识别银行卡…
-              </div>
-            )}
-            {bankOcr.status === 'ok' &&
-              (bankOcr.filled.cardNumber || bankOcr.filled.bankName) && (
-                <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900">
-                  ✨ OCR 已自动填入
-                  {bankOcr.filled.bankName && <span className="ml-1">银行</span>}
-                  {bankOcr.filled.bankName && bankOcr.filled.cardNumber && <span>、</span>}
-                  {bankOcr.filled.cardNumber && <span>卡号</span>}
-                  <span className="ml-1 font-medium">· 请核对后再提交</span>
-                </div>
-              )}
-            {bankOcr.status === 'error' && (
-              <div className="text-[11px] text-gray-500">⚠️ {bankOcr.message}</div>
-            )}
-
-            <div>
-              <label className="block text-[11px] text-gray-400 mb-0.5">银行 *</label>
-              <input
-                value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                placeholder="如：工商银行"
-                className="w-full h-9 text-sm rounded-md border border-gray-300 bg-white px-2"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] text-gray-400 mb-0.5">
-                卡号 * <span className="text-gray-300">12-19 位</span>
-              </label>
-              <input
-                value={formatCardNumber(bankCardNumber)}
-                onChange={(e) => setBankCardNumber(e.target.value.replace(/\D/g, '').slice(0, 19))}
-                inputMode="numeric"
-                autoComplete="off"
-                placeholder="识别后自动填入，或手填"
-                className="w-full h-9 text-sm rounded-md border border-gray-300 bg-white px-2 font-mono tracking-wider"
-                required
-              />
-              <p className="mt-1 text-[11px] text-gray-400">
-                卡号将加密保存，列表/小票仅显示后 4 位，老板可查明文
-              </p>
-            </div>
-          </div>
-        )}
-      </section>
-
       {/* 身份证正反面（客户接受价格后再拍照登记；OCR 自动回填下方姓名+身份证号） */}
       <section className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
         <h3 className="text-sm font-medium text-gray-900">
@@ -813,6 +718,109 @@ export function NewRecycleForm({ stores }: { stores: Store[] }) {
             可让客户口述 → 点手机键盘右上角🎤语音输入
           </p>
         </div>
+      </section>
+
+      {/* 付款方式 */}
+      <section className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+        <h3 className="text-sm font-medium text-gray-900">付款方式 *</h3>
+        <div className="grid grid-cols-4 gap-2">
+          {PAYMENT_OPTIONS.map((opt) => {
+            const active = paymentMethod === opt.value
+            return (
+              <button
+                type="button"
+                key={opt.value}
+                onClick={() => setPaymentMethod(opt.value)}
+                className={`h-9 text-sm rounded-md border transition ${
+                  active
+                    ? 'border-gray-900 bg-gray-900 text-white'
+                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {paymentMethod === 'other' && (
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">付款方式说明 *</label>
+            <input
+              value={paymentOtherDesc}
+              onChange={(e) => setPaymentOtherDesc(e.target.value)}
+              placeholder="如：现金、商户记账等"
+              className="w-full h-9 text-sm rounded-md border border-gray-300 bg-white px-2"
+              required
+            />
+          </div>
+        )}
+
+        {paymentMethod === 'bank' && (
+          <div className="rounded-md border border-gray-200 bg-gray-50 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                <CreditCard className="w-3.5 h-3.5" /> 银行卡信息
+              </span>
+              <span className="text-[11px] text-gray-400">拍照自动识别</span>
+            </div>
+
+            {/* 银行卡正面照（触发 OCR） */}
+            <BankCardPhotoSlot
+              preview={bankcardPreview}
+              inputRef={bankcardInputRef}
+              onPick={onPickBankcard}
+            />
+
+            {/* OCR 状态条 */}
+            {bankOcr.status === 'loading' && (
+              <div className="inline-flex items-center gap-1 text-[11px] text-gray-500">
+                <Loader2 className="w-3 h-3 animate-spin" /> 正在识别银行卡…
+              </div>
+            )}
+            {bankOcr.status === 'ok' &&
+              (bankOcr.filled.cardNumber || bankOcr.filled.bankName) && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-900">
+                  ✨ OCR 已自动填入
+                  {bankOcr.filled.bankName && <span className="ml-1">银行</span>}
+                  {bankOcr.filled.bankName && bankOcr.filled.cardNumber && <span>、</span>}
+                  {bankOcr.filled.cardNumber && <span>卡号</span>}
+                  <span className="ml-1 font-medium">· 请核对后再提交</span>
+                </div>
+              )}
+            {bankOcr.status === 'error' && (
+              <div className="text-[11px] text-gray-500">⚠️ {bankOcr.message}</div>
+            )}
+
+            <div>
+              <label className="block text-[11px] text-gray-400 mb-0.5">银行 *</label>
+              <input
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+                placeholder="如：工商银行"
+                className="w-full h-9 text-sm rounded-md border border-gray-300 bg-white px-2"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-gray-400 mb-0.5">
+                卡号 * <span className="text-gray-300">12-19 位</span>
+              </label>
+              <input
+                value={formatCardNumber(bankCardNumber)}
+                onChange={(e) => setBankCardNumber(e.target.value.replace(/\D/g, '').slice(0, 19))}
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="识别后自动填入，或手填"
+                className="w-full h-9 text-sm rounded-md border border-gray-300 bg-white px-2 font-mono tracking-wider"
+                required
+              />
+              <p className="mt-1 text-[11px] text-gray-400">
+                卡号将加密保存，列表/小票仅显示后 4 位，老板可查明文
+              </p>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* 备注 */}

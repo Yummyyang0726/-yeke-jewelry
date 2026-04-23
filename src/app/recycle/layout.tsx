@@ -19,7 +19,6 @@ export default async function RecycleLayout({ children }: { children: React.Reac
             <ChevronLeft className="w-5 h-5" />
           </Link>
           <h1 className="text-base font-medium text-gray-900">旧金回购登记</h1>
-          <div className="ml-auto text-xs text-gray-500 pr-3">{session.name}</div>
         </div>
       </header>
       <main className="max-w-2xl mx-auto w-full px-4 py-4 pb-24">{children}</main>
